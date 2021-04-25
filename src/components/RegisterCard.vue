@@ -1,7 +1,7 @@
 <template>
     <v-card color="FFFFFF0" elevation="24" outlined width="400" height="300" tile >
-          <v-card color="#89ABE3FF" style="margin-bottom: 10px" tile width="400">
-           <v-card-title class="justify-center">Login</v-card-title>
+          <v-card color="deep-orange" style="margin-bottom: 10px" tile width="400" dark>
+           <v-card-title class="justify-center">Register</v-card-title>
         </v-card>
                  <v-row class="justify-center">
                      <v-col
@@ -34,7 +34,7 @@
                     </v-col>
                  </v-row>
                  <v-row class="justify-center">
-                 <v-btn color="primary" @click.native="register()">Login</v-btn>
+                 <v-btn color="primary" @click.native="register()">Register</v-btn>
                  </v-row><v-row class="justify-center">
                  </v-row>
         </v-card>
@@ -61,11 +61,18 @@ export default {
       .auth()
       .createUserWithEmailAndPassword(this.email, this.password)
       .then(() => {
-        alert('Successfully registered! Please login.');
+       var ref = firebase.firestore().collection("users").doc(this.email);
+                ref.set({
+                    email: this.email,
+                    groups: []
+                })
+                .catch((error) => {
+                    console.error("Error writing document: ", error);
+                });
         this.$router.push('/login');
       })
       .catch(error => {
-        alert(error.message);
+        console.log(error.message);
       });
   },
 }

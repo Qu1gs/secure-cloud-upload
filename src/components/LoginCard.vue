@@ -35,7 +35,6 @@
                  </v-row>
                  <v-row class="justify-center">
                  <v-btn color="primary" @click.native="login()">Login</v-btn>
-                 </v-row><v-row class="justify-center">
                  </v-row>
         </v-card>
 </template>
