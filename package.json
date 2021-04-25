@@ -11,6 +11,8 @@
     "core-js": "^3.6.5",
     "dotenv": "^8.2.0",
     "firebase": "^8.4.2",
+    "hybrid-crypto-js": "^0.2.4",
+    "js-file-download": "^0.4.12",
     "vue": "^2.6.11",
     "vue-router": "^3.2.0",
     "vuetify": "^2.4.0"

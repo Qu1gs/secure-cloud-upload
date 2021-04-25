@@ -4,9 +4,11 @@
       dark
       absolute
     >
-      <v-toolbar-title>Title</v-toolbar-title>
+      <v-toolbar-title>Secure Upload</v-toolbar-title>
       <v-spacer/>
+      <div v-if="!user"><v-btn text color="red" @click="register()">Register</v-btn></div>
       <div v-if="user">{{ user.email}}</div>
+      <v-btn v-if="user" icon @click="logout()"><v-icon color="red">mdi-logout</v-icon></v-btn>
     </v-app-bar>
 </template>
 
@@ -19,6 +21,16 @@ import firebase from 'firebase'
             group: null,
             user: firebase.auth().currentUser
         }
+    },
+    methods: {
+      logout(){
+        firebase.auth().signOut()
+        this.$router.push('/');
+
+      },
+      register(){
+        this.$router.push('/register')
+      }
     }
 }
 </script>

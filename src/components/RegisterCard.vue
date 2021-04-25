@@ -69,7 +69,7 @@ export default {
                 .catch((error) => {
                     console.error("Error writing document: ", error);
                 });
-        this.$router.push('/login');
+        this.$router.push('/');
       })
       .catch(error => {
         console.log(error.message);

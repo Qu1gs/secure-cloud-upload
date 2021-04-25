@@ -9,9 +9,13 @@ const routes = [
     path: '/',
     name: 'Login',
     component: () => import('../views/Login.vue'),
-     meta: {
-        requiresNoLogin: true,
-     }
+
+  },
+  {
+    path: '/register',
+    name: 'Register',
+    component: () => import('../views/Register.vue'),
+
   },
   {
     path: '/home',
@@ -32,7 +36,7 @@ router.beforeEach((to, from, next) => {
   if (to.matched.some((record) => record.meta.requiresAuth)) {
     if (!firebase.auth().currentUser) {
       next({
-        path: "/",
+        path: "/home",
         query: {
           redirect: to.fullPath,
         },
@@ -43,7 +47,7 @@ router.beforeEach((to, from, next) => {
   } else if (to.matched.some((record) => record.meta.requiresNoLogin)) {
     if (firebase.auth().currentUser) {
       next({
-        path: "/home",
+        path: "/",
         query: {
           redirect: to.fullPath,
         },

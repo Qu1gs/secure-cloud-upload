@@ -48,7 +48,7 @@
                         filled
                         chips
                         :items="listOfUsers"
-                        label="Select"
+                        label="Members"
                         item-text="name"
                         item-value="name"
                         multiple
@@ -68,7 +68,7 @@
                     color="green darken-2"
                     text
                     :disabled="!(groupValid)"
-                    @click="createGroup()"
+                    @click="createKeyPairings()"
                   >
                   Save
                   <v-icon
@@ -80,19 +80,50 @@
                   </v-btn>
                 </v-card-actions>
             </v-card>
-                
-              </v-dialog>
-               <v-dialog v-model="deleteGroupDialog" max-width="500px">
-              <v-card>
-                <v-card-title class="headline">Are you sure you want to delete this item?</v-card-title>
-                <v-card-actions>
-                  <v-spacer></v-spacer>
-                  <v-btn color="blue darken-1" text @click="closeDeleteGroup()">Cancel</v-btn>
-                  <v-btn color="blue darken-1" text @click="deleteGroupConfirm()">OK</v-btn>
-                  <v-spacer></v-spacer>
-                </v-card-actions>
-              </v-card>
             </v-dialog>
+                    <v-dialog
+                      v-model="viewDialog"
+                      max-width="1400px"
+                      min-height="600px"
+                    >
+                      <v-card min-height="800px">
+                        <v-card-title>
+                          <div class="headline text-center">{{ this.selectedItem.name }}</div><v-file-input
+                            v-model="files"
+                            color="deep-purple accent-4"
+                            counter
+                            label="File input"
+                            multiple
+                            placeholder="Select your files"
+                            prepend-icon="mdi-paperclip"
+                            style="margin-left: 10px; margin-right: 10px"
+                            :show-size="1000"
+                          />
+                          <v-btn @click="upload(selectedItem)">Upload</v-btn>
+                        </v-card-title>
+                        <v-data-table
+                        height="600px"
+                        style="padding: 20px"
+                        :items-per-page="5"
+                        :headers="itemHeaders"
+                        :items="this.uploadedFiles"
+                        >
+                        <template v-slot:[`item.actions`]="{ item }">
+                          <v-icon small class="mr-2" @click="download(item)">
+                            mdi-download
+                          </v-icon>
+                          <v-icon
+                            small
+                            @click="deleteFile(item)"
+                            >
+                            mdi-delete
+                          </v-icon>
+                        </template>
+                      </v-data-table>
+                        <v-card-actions>
+                        </v-card-actions>
+                      </v-card>
+                    </v-dialog>
             <v-data-table
               height="450px"
               style="padding: 20px"
@@ -101,8 +132,8 @@
               :items="this.groups"
             >
               <template v-slot:[`item.actions`]="{ item }">
-                <v-icon small class="mr-2" @click="viewGroup(item)">
-                  mdi-pencil
+                <v-icon small class="mr-2" @click="viewGroup(item); getDownload(item)">
+                  mdi-eye
                 </v-icon>
                 <v-icon
                   small
@@ -119,6 +150,8 @@
 <script>
 import Appbar from '../components/Appbar.vue'
 import firebase from 'firebase'
+var fileDownload = require('js-file-download');
+import { Crypt, RSA } from 'hybrid-crypto-js';
 export default {
   name: 'Home',
   components: {
@@ -133,6 +166,11 @@ export default {
         groupName: null,
         members: [],
         listOfUsers: [],
+        selectedItem: [],
+        uploadedFiles: [],
+        viewDialog: null,
+        priv: null,
+        files: [],
         headers: [
         {
           text: 'Group Name',
@@ -149,7 +187,22 @@ export default {
           groupable: false
         },
         {
-          text: 'Edit / Delete',
+          text: 'View / Delete',
+          value: 'actions',
+          sortable: false,
+          align: 'right'
+        }
+      ],
+      itemHeaders: [
+        {
+          text: 'Name',
+          sortable: true,
+          value: 'path_',
+          width: '400',
+          groupable: false
+        },
+        {
+          text: 'Download / Delete',
           value: 'actions',
           sortable: false,
           align: 'right'
@@ -162,13 +215,97 @@ export default {
     this.getGroups()
   },
   methods: {
-    createGroup () {
-       firebase.firestore().collection("groups").doc(this.groupName)
+    deleteFile(item){
+      firebase.storage().ref(item.path_).delete()
+      this.getDownload()
+    },
+    download(item) {
+      firebase.storage().ref(item.path_).getDownloadURL()
+      .then((url) => {
+        var xhr = new XMLHttpRequest();
+        xhr.responseType = 'text';
+        xhr.onload = () => {
+          var blob = xhr.response;
+          firebase.firestore().collection("users").doc(firebase.auth().currentUser.email).get().then((doc) => {
+            for(var i = 0; i < doc.data().groups.length; i++){
+              if(doc.data().groups[i] === this.selectedItem.name){
+                this.$data.priv = doc.data().key[i]
+              }
+            }
+            console.log(blob)
+            var crypt = new Crypt();
+            var decrypted =  crypt.decrypt(this.$data.priv, blob)
+            var buf = new ArrayBuffer(decrypted.message.length*2);
+            var bufView = new Uint8Array(buf)
+            var strLen = decrypted.message.length
+            for(var j =0; j<strLen; j++){
+                bufView[j] = decrypted.message.charCodeAt(j)
+            }
+            fileDownload((buf), item.path_)
+            this.$data.priv = null
+          })
+        };
+        xhr.open('GET', url);
+        xhr.send();
+      })
+      .catch((error) => {
+        console.log(error)
+      });
+    },
+    async upload(item) {
+      var files = this.files
+      for(var i = 0; i < files.length; i++){
+      const file = files[i]
+      var arrBuff = await file.arrayBuffer()
+      var text = String.fromCharCode.apply(null, new Uint8Array(arrBuff));
+      var crypt = new Crypt();
+      var encrypted = await crypt.encrypt(this.selectedItem.publicKey, text)
+      firebase.storage().ref(item.name+"/"+file.name).putString(encrypted).then(() => {
+        this.getDownload(item)
+      });
+      }
+      this.files = []
+    },
+    getDownload(item) {
+      this.$data.uploadedFiles = []
+      console.log(this.$data.groups)
+      firebase.storage().ref(item.name+"/").listAll().then((result) => {
+        var array = []
+        for(var i = 0; i < result._delegate.items.length; i++){
+          array.push(result._delegate.items[i]._location)
+        }
+        this.$data.uploadedFiles = array
+        console.log(this.$data.uploadedFiles)
+      })
+    },
+    viewGroup(item){
+      this.selectedItem = item
+      this.viewDialog = true;
+    },
+    deleteGroup(item) {
+       firebase.firestore().collection("groups").doc(item.name).delete()
+       this.groups = this.groups.filter(v => v !== item)
+       firebase.firestore().collection("users").get().then((querySnapshot) => {
+            querySnapshot.forEach((doc) => {
+                if(doc.data().groups.includes(item.name)){
+                firebase.firestore().collection("users").doc(doc.id).update({
+                  groups: doc.data().groups.filter(v => v !== item.name)
+                });
+              }
+            });
+        });
+    },
+    createKeyPairings () {
+      var rsa = new RSA();
+      rsa.generateKeyPair(this.createGroup)
+    },
+    createGroup (keyPair) {
+        firebase.firestore().collection("groups").doc(this.groupName)
           .set({
               name: this.groupName,
               author: firebase.auth().currentUser.email,
               members: this.members,
-              files: []
+              publicKey: keyPair.publicKey
           })
        this.dialogCreateGroup = false
        var members = this.$data.members
@@ -178,6 +315,9 @@ export default {
                 firebase.firestore().collection("users").doc(doc.id).update({
                   groups: firebase.firestore.FieldValue.arrayUnion(this.groupName)
                 });
+                firebase.firestore().collection("users").doc(doc.id).update({
+                  key: firebase.firestore.FieldValue.arrayUnion(keyPair.privateKey)
+                });
               }
             });
         });
@@ -185,10 +325,9 @@ export default {
         name: this.groupName,
         author: firebase.auth().currentUser.email,
         members: this.members,
-        files: []
+        publicKey: keyPair.publicKey
       })
       console.log(this.groups)
-
     },
     getUsers () {
         firebase.firestore().collection("users").get().then((querySnapshot) => {
@@ -201,13 +340,14 @@ export default {
         console.log("Error getting documents: ", error);
     });
       },
-      getGroups() {
-       firebase.firestore().collection("groups").get().then((querySnapshot) => {
-          querySnapshot.forEach((doc) => {
-             this.groups.push(doc.data())
-              });
-         });
-      }
+    getGroups() {
+      firebase.firestore().collection("groups").get().then((querySnapshot) => {
+        querySnapshot.forEach((doc) => {
+          if(doc.data().members.includes(firebase.auth().currentUser.email) || doc.data().author === firebase.auth().currentUser.email)
+            this.groups.push(doc.data())
+            });
+        });
     }
+}
 }
 </script>
